@@ -1,0 +1,372 @@
+---
+title: "Esercizio da Svolgere di Inferenza Statistica"
+author: "Gabriele Granzotto"
+date: "08-07-2024"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+L'esercizio assegnato deve essere svolto per mezzo del software
+statistico R. Il codice e i risultati devono essere riportati in un
+documento, insieme al testo di commento ed eventuali grafici.
+
+# Esercizio
+
+Sia $(X_1, X_2, ... , X_n)$ un campione casuale generato da
+$X ∼ N (0, 1)$ e sia $T_n = \Sigma^n_{i=1} X^2_i$.
+
+1.  Fissando $n$, si studi la distribuzione di $T_n$ utilizzando un
+    approccio di tipo Monte Carlo, evidenziando il confronto con la
+    densità teorica della v.a. $T_n$.
+
+2.  Con riferimento al punto precedente, confrontare i momenti
+    caratteristici calcolati sulla distribuzione empirica ottenuta via
+    simulazione con gli analoghi indicatori della distribuzione teorica
+    (media, varianza, curtosi, percentili, ecc.) all'aumentare del
+    numero di repliche $M$ , con $500 ≤ M ≤ 5000$ e commentare i
+    risultati.
+
+3.  Supponendo ora di generare campioni di ampiezza crescente, si cerchi
+    di stabilire via simulazione la bontà dell'approssimazione fornita
+    dalla distribuzione normale alla distribuzione di $T_n$.
+
+# Svolgimento
+
+### 1.
+
+Come prima cosa carico le librerie:
+
+-   "ggplot" per disegnare i grafici;
+
+-   "moments" per calcolare i momenti della funzione empirica;
+
+-   "tibble" per fare i Dataset.
+
+```{r}
+library(ggplot2)
+library(moments)
+library(tibble)
+```
+
+Successivamente si inseriscono i parametri:
+
+-   $n$, numero di normali standard da sommare;
+
+-   $M$, numero di ripetizioni con il metodo di Montecarlo.
+
+E si calcolano le distribuzioni attraverso un ciclo.
+
+```{r}
+numero.valori.generati.normale <- 5
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+```
+
+Si nota che la distribuzione data, $T_n = \Sigma^n_{i=1} X^2_i$, si
+distribuisce come una $\chi^2_{n}$. Quindi si calcolano i valori e gli
+si inseriscono in un Dataset.
+
+```{r test, echo=FALSE, warning=FALSE}
+passo <- 30/numero.ripetizioni.montecarlo
+range <- 30 - passo
+
+numero.dati <- seq(0, range, by=passo)
+chi.quadro <- dchisq(seq(0, range, by=passo), df=numero.valori.generati.normale)
+dati.teorici <- tibble(x = numero.dati, Chi = chi.quadro)
+
+```
+
+Infine si "plottano" la distribuzione teorica (in rosso) e quella
+empirica (in blu).
+
+```{r, warning=FALSE}
+ggplot(data=dati.teorici) +
+  geom_line(aes(x=x, y=Chi), color="darkred", linewidth=1) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  xlim(0, 30) +
+  labs(title = "Comparazione metodo di Montecarlo e Distribuzione Teorica", y="y", x="x")
+```
+
+### 2.
+
+Ora si calcolano media, varianza, skewness e curtosi teoriche di una
+$\chi^2_{n}$.
+
+-   media: $n$;
+
+-   varianza: $2n$;
+
+-   skewness: $\sqrt{\frac{8}{n}}$;
+
+-   curtosi: $\frac{12}{n}$.
+
+```{r}
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+skewness <- sqrt(8/numero.valori.generati.normale)
+curtosi <- 12/numero.valori.generati.normale
+```
+
+E si calcolano anche i momenti (dal primo al quarto) per calcolare
+rispettivamente media, varianza, skewness e curtosi empiriche.
+
+-   media: $E[X] = m_1$;
+
+-   varianza: $V[X] = m_2 - m_1^2$;
+
+-   skewness: $\beta_1 = \frac{m_3}{m_2^{3/2}}$;
+
+-   curtosi: $\beta_2 = \frac{m_4}{m_2^2}$.
+
+```{r}
+m1 <- moment(distribuzione.T, order = 1, central = TRUE)
+m2 <- moment(distribuzione.T, order = 2, central = TRUE) 
+m3 <- moment(distribuzione.T, order = 3, central = TRUE)
+m4 <- moment(distribuzione.T, order = 4, central = TRUE)
+
+media_montecarlo <- moment(distribuzione.T, order = 1, central = FALSE)
+varianza_montecarlo <- m2 - m1^2
+skewness_montecarlo <- m3/sqrt(m2^3)
+curtosi_montecarlo <- m4/(m2)^2
+```
+
+Infine si stampano i risultati.
+
+```{r}
+print(paste("Media Teorica: ", media))
+print(paste("Media Empirica:", round(media_montecarlo, 4)))
+
+print(paste("Varianza Teorica: ", varianza))
+print(paste("Varianza Empirica:", round(varianza_montecarlo,4)))
+
+print(paste("Skewness Teorica: ", round(skewness,4)))
+print(paste("Skewness Empirica:", round(skewness_montecarlo,4)))
+
+print(paste("Curtosi Teorica: ", curtosi))
+print(paste("Curtosi Empirica:", round(curtosi_montecarlo,4)))
+```
+
+Adesso si ripete il processo per valori di $M$ tra $500$ e $5000$.
+
+```{r}
+numero.valori.generati.normale <- 10
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+skewness <- sqrt(8/numero.valori.generati.normale)
+curtosi <- 12/numero.valori.generati.normale
+
+n <- vector()
+m <- vector()
+v <- vector()
+s <- vector()
+c <- vector()
+
+for (numero.ripetizioni.montecarlo in seq(500, 5001, 50))
+{
+  distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+  for (i in 1:numero.ripetizioni.montecarlo)
+  {
+    valori.normale <- rnorm(numero.valori.generati.normale);
+    distribuzione.T[i] <- sum(valori.normale**2)
+  }
+  
+  m1 <- moment(distribuzione.T, order = 1, central = TRUE)
+  m2 <- moment(distribuzione.T, order = 2, central = TRUE) 
+  m3 <- moment(distribuzione.T, order = 3, central = TRUE)
+  m4 <- moment(distribuzione.T, order = 4, central = TRUE)
+  
+  media_montecarlo <- moment(distribuzione.T, order = 1, central = FALSE)
+  varianza_montecarlo <- m2 - m1^2
+  skewness_montecarlo <- m3/sqrt(m2^3)
+  curtosi_montecarlo <- m4/m2^2
+  
+  n <- c(n, numero.ripetizioni.montecarlo)
+  m <- c(m, media_montecarlo)
+  v <- c(v, varianza_montecarlo)
+  s <- c(s, skewness_montecarlo)
+  c <- c(c, curtosi_montecarlo)
+}
+```
+
+Vengono "plottati" i grafici della differenza in valore assoluto del
+dato teorico e del dato empirico, $|x-x_n|$, al variare di $n$ (in blu
+la media, in rosso la varianza, in verde la skewness e in arancione la
+curtosi) all'aumentare delle ripetizioni.
+
+```{r}
+dati.momenti <- tibble(n = n, media = abs(m-media), varianza = abs(v-varianza), skewness = abs(s-skewness), curtosi = abs(c-curtosi))
+ggplot(data = dati.momenti) +
+  geom_line(aes(x=n, y=media), color="blue", linewidth=1) +
+  geom_line(aes(x=n, y=varianza), color="red", linewidth=1) +
+  geom_line(aes(x=n, y=skewness), color="darkgreen", linewidth=1) +
+  geom_line(aes(x=n, y=curtosi), color="orange", linewidth=1)
+ 
+```
+
+Si vede che tendono tutte a convergere al valore teorico, l'unico valore
+che non converge è la Curtosi, che si vede convergere ad un valore
+uguale alla $Curtosi_{teorica}+3$.
+
+Informandomi ho trovato l'"Excess Kurtosis", che sembra spiegare il
+motivo per questa differenza.
+
+```{r}
+numero.valori.generati.normale <- 10
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+skewness <- sqrt(8/numero.valori.generati.normale)
+curtosi <- 12/numero.valori.generati.normale
+
+n <- vector()
+m <- vector()
+v <- vector()
+s <- vector()
+c <- vector()
+
+for (numero.ripetizioni.montecarlo in seq(500, 5001, 50))
+{
+  distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+  for (i in 1:numero.ripetizioni.montecarlo)
+  {
+    valori.normale <- rnorm(numero.valori.generati.normale);
+    distribuzione.T[i] <- sum(valori.normale**2)
+  }
+  
+  m1 <- moment(distribuzione.T, order = 1, central = TRUE)
+  m2 <- moment(distribuzione.T, order = 2, central = TRUE) 
+  m3 <- moment(distribuzione.T, order = 3, central = TRUE)
+  m4 <- moment(distribuzione.T, order = 4, central = TRUE)
+  
+  media_montecarlo <- moment(distribuzione.T, order = 1, central = FALSE)
+  varianza_montecarlo <- m2 - m1^2
+  skewness_montecarlo <- m3/sqrt(m2^3)
+  excess.curtosi_montecarlo <- m4/m2^2 -3
+  
+  n <- c(n, numero.ripetizioni.montecarlo)
+  m <- c(m, media_montecarlo)
+  v <- c(v, varianza_montecarlo)
+  s <- c(s, skewness_montecarlo)
+  c <- c(c, excess.curtosi_montecarlo)
+}
+dati.momenti <- tibble(n = n, media = abs(m-media), varianza = abs(v-varianza), skewness = abs(s-skewness), curtosi = abs(c-curtosi))
+ggplot(data = dati.momenti) +
+  geom_line(aes(x=n, y=media), color="blue", linewidth=1) +
+  geom_line(aes(x=n, y=varianza), color="red", linewidth=1) +
+  geom_line(aes(x=n, y=skewness), color="darkgreen", linewidth=1) +
+  geom_line(aes(x=n, y=curtosi), color="orange", linewidth=1)
+```
+
+### 3.
+
+Nell'ultimo punto possiamo vedere la distribuzione $T_n$ calcolata più
+volte incrementando $n$ prima a $4$, poi a $10$, $100$, $1000$ e
+$10000$.
+
+Si vede chiaramente come la distribuzione normale $N(n, 2n)$ riesca
+sempre meglio a catturare l'andamento della distribuzione $T_n$.
+
+```{r}
+numero.valori.generati.normale <- 4
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+
+ggplot(data=dati.teorici) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  stat_function(fun = dnorm, n = 101, args = list(mean = media, sd = sqrt(varianza)), color="darkred", linewidth=1) + xlab("")
+```
+
+```{r}
+numero.valori.generati.normale <- 10
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+
+ggplot(data=dati.teorici) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  stat_function(fun = dnorm, n = 101, args = list(mean = media, sd = sqrt(varianza)), color="darkred", linewidth=1) + xlab("")
+```
+
+```{r}
+numero.valori.generati.normale <- 100
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+
+ggplot(data=dati.teorici) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  stat_function(fun = dnorm, n = 101, args = list(mean = media, sd = sqrt(varianza)), color="darkred", linewidth=1) + xlab("")
+```
+
+```{r}
+numero.valori.generati.normale <- 1000
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+
+ggplot(data=dati.teorici) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  stat_function(fun = dnorm, n = 101, args = list(mean = media, sd = sqrt(varianza)), color="darkred", linewidth=1) + xlab("")
+```
+
+```{r}
+
+numero.valori.generati.normale <- 10000
+numero.ripetizioni.montecarlo <- 5000
+
+distribuzione.T <- array(dim = numero.ripetizioni.montecarlo)
+for (i in 1:numero.ripetizioni.montecarlo)
+{
+  valori.normale <- rnorm(numero.valori.generati.normale);
+  distribuzione.T[i] <- sum(valori.normale**2)
+}
+
+media <- numero.valori.generati.normale
+varianza <- 2*numero.valori.generati.normale
+
+ggplot(data=dati.teorici) +
+  geom_density(aes(x=distribuzione.T), color="transparent", fill="blue", alpha=0.3) +
+  stat_function(fun = dnorm, n = 101, args = list(mean = media, sd = sqrt(varianza)), color="darkred", linewidth=1) + xlab("")
+```

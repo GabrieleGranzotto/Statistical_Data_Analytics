@@ -1,0 +1,1885 @@
+---
+title: "Progetto Data Analytics"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+date: "BALDASSI, GRANZOTTO, TRABUCCO, ZORZETTO"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br><br>
+
+## Introduzione
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+setwd("C:/Users/sarat/Desktop/Progetto esame")
+library(ggplot2)
+library(knitr)
+library(ggpubr)
+library(GGally)
+library(corrplot)
+library(gvlma)
+
+data <- read.csv('imports-85.data', sep=',', header=F)
+colnames(data) <- c('symboling', 'normalizedLosses','make','fuelType', 'aspiration', 'numOfDoors',
+                    'bodyStyle', 'driveWheels','engineLocation','wheelBase',
+                    'length','width','height', 'curbWeight','engineType',
+                    'numOfCylinders','engineSize','fuelSystem',
+                    'bore','stroke','compressionRatio', 'horsepower',
+                    'peakRpm', 'cityMpg', 'highwayMpg', 'price')
+```
+
+I dati considerati per quest'analisi provengono dal dataset ***Automobile***, contenente 26 attributi diversi riguardanti diverse caratteristiche per un totale di 205 auto considerate.
+
+Oltre a contenere descrizioni delle caratteristiche delle auto (riguardanti consumi, tipologia di motore, tipologia di chassis, tipologia di carburante...), sono presenti anche fattori di rischio legati al prezzo stesso dei veicoli (il cosiddetto *symboling*).
+
+<hr>
+
+## Analisi del dataset
+
+L'analisi del dataset è stata strutturata come segue:
+
+1.  Pulizia dei dati
+2.  Analisi univariata
+3.  Analisi bivariata
+4.  Modelli di regressione
+
+Per visualizzare la struttura del dataset, si usa la funzione `str()` :
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+str(data)
+```
+
+<br>
+
+<hr>
+
+## 1. Pulizia dei dati
+
+Alcune considerazioni:
+
+-   I dati mancanti vengono rappresentati nel dataset con la stringa '*?*', si è deciso quindi di sostituirli con valori NA e di calcolare in quali colonne e quanti ne fossero presenti;
+
+-   Alcune colonne necessitano di un diverso formato, sono state quindi trasformate in factor o in numeric o integer a seconda delle necessità.
+
+<br>
+
+### Valori mancanti nel dataset
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+data[data == '?'] <- NA
+numberOfNa <- apply(data, 2, function(x){length(which(is.na(x)))})
+kable(numberOfNa[numberOfNa != 0], col.names=c("NAs"))
+data <- subset(data, select = -normalizedLosses)
+```
+
+Si può osservare che la variabile *normalizedLosses* contiene un numero considerevole di valori mancanti: si è ritenuto quindi di non utilizzarla nell'analisi del dataset.
+
+Negli altri casi, essendo il numero di NA contenuto rispetto al numero totale di istanze, non sembra essere conveniente sostituire con altri valori, quanto piuttosto rimuoverli per le analisi successive.
+
+<br>
+
+### Trasformazioni delle variabili
+
+Si è deciso inoltre di trasformare le variabili *symboling, make, fuelType, aspiration, numOfDoors, bodyStyle, driveWheels, engineLocation, engineType, numOfCylinders* e *fuelSystem* in fattori.
+
+Altre come *normalizedLosses, bore, stroke, horsepower, peakRpm* e *price* in numeric o integer a seconda dei casi.
+
+<br>
+
+<br>
+
+## 2. Analisi univariata - variabili categoriali
+
+Per l'analisi di ogni variabile del dataset sono stati utilizzati diversi strumenti grafici e statistici:
+
+-   Per le variabili **categoriali**, come ad esempio le marche delle auto (*make*) o la tipologia di carburante (*fuelType*), si è scelto di utilizzare dei barplot per rappresentare le loro frequenze assolute;
+
+-   Per le variabili **continue**, conviene invece considerare i rispettivi boxplot e curve di densità;
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+data$make <- as.factor(data$make)
+data$fuelType <- as.factor(data$fuelType)
+data$aspiration <- as.factor(data$aspiration)
+data$numOfDoors <- as.factor(data$numOfDoors)
+data$bodyStyle <- as.factor(data$bodyStyle)
+data$driveWheels <- as.factor(data$driveWheels)
+data$engineLocation <- as.factor(data$engineLocation)
+data$engineType <- as.factor(data$engineType)
+data$numOfCylinders <- as.factor(data$numOfCylinders)
+data$fuelSystem <- as.factor(data$fuelSystem)
+data$symboling <- as.character(data$symboling)
+data$symboling <- as.factor(data$symboling)
+
+data$numOfCylinders <- factor(data$numOfCylinders, levels = c("two", "three", "four", "five", "six", "eight", "twelve"))
+data$symboling <- factor(data$symboling, levels = c("-3", "-2", "-1", "0", "1", "2", "3"))
+
+data$symboling <- droplevels(data$symboling, exclude = "-3")
+
+
+data$length <- as.numeric(data$length)
+data$width <- as.numeric(data$width)
+data$height <- as.numeric(data$height)
+data$bore <- as.numeric(data$bore)
+data$stroke <- as.numeric(data$stroke)
+data$horsepower <- as.integer(data$horsepower)
+data$peakRpm <- as.integer(data$peakRpm)
+data$price <- as.integer(data$price)
+data$cityMpg <- as.numeric(data$cityMpg)
+data$compressionRatio <- as.numeric(data$compressionRatio)
+data$highwayMpg <- as.numeric(data$highwayMpg)
+
+
+factor_col<-names(Filter(is.factor, data))
+x_labf <- function(data){
+  paste(levels(data),"\n(N=",table(data),")",sep="")
+}
+xlab<-sapply(data[,factor_col],x_labf)
+```
+
+<br>
+
+#### *Symboling*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=symboling))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Symboling - classificazione") +
+  coord_cartesian(ylim = c(0, 75)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+```
+
+Il symboling o classificazione del rischio, è un sistema che assegna un livello di rischio ad un veicolo con lo scopo di calcolarne il premio assicurativo. In questa scala un punteggio pari a +3 indica il veicolo come "rischioso" mentre -3 "sicuro" da assicurare.
+
+Si può osservare che la maggior parte dei veicoli registrati nel dataset sono stati classificati con un valore di *symboling* pari a 0.
+
+<br>
+
+#### *Make*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=make))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Make - marche") +
+  coord_flip() + 
+  coord_cartesian(ylim = c(0, 40)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+La marca d'auto più presente del dataset è la Toyota.
+
+<br>
+
+#### *Fuel type*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=fuelType))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Fuel type - tipo di carburante") +
+  coord_cartesian(ylim = c(0, 210)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+```
+
+Nel dataset la tipologia di carburante più frequente è la benzina.
+
+<br>
+
+#### *Aspiration* & *number of doors*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data,aes(x=aspiration))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Aspiration - aspirazione") +
+  coord_cartesian(ylim = c(0, 210)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+p2 <- ggplot(data,aes(x=numOfDoors))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Number of doors - numero di portiere") +
+  coord_cartesian(ylim = c(0, 150)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1) 
+
+ggarrange(p1, p2, ncol=2, nrow=1)
+```
+
+La maggior parte delle auto del dataset ha quattro porte, mentre la tipologia di aspirazione più frequente è la std.
+
+<br>
+
+#### *Body style* & *drive wheels*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data,aes(x=bodyStyle))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Body style - chassis") +
+  coord_cartesian(ylim = c(0, 150)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+p2 <- ggplot(data,aes(x=driveWheels))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Drive wheels - trazione") +
+  coord_cartesian(ylim = c(0, 150)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+ggarrange(p1, p2, ncol=2, nrow=1)
+```
+
+Le auto sono per la maggiore del tipo berlina (sedan) e a trazione anteriore (fwd).
+
+<br>
+
+#### *Engine type* & *engine location*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p1 <- ggplot(data,aes(x=engineType))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Engine type - tipologia di motore") +
+  coord_cartesian(ylim = c(0, 200)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+p2 <- ggplot(data,aes(x=engineLocation))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Engine location - posizione del motore") +
+  coord_cartesian(ylim = c(0, 230)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+ggarrange(p1, p2, ncol=2, nrow=1)
+```
+
+La maggior parte delle automobili hanno il motore nella parte anteriore e di tipologia ohc, ossia motori con alberi a canne in testa.
+
+<br>
+
+#### *Fuel system* & *Number of cylinders*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data,aes(x=fuelSystem))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Fuel system - sistema di carburazione") +
+  coord_cartesian(ylim = c(0, 150)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+p2 <- ggplot(data,aes(x=numOfCylinders))+
+  geom_bar(fill=c("#319291"))+
+  xlab("Number of cylinders - numero di cilindri") +
+  coord_cartesian(ylim = c(0, 200)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1)
+
+
+ggarrange(p1, p2, ncol=2, nrow=1)
+```
+
+La maggior parte dei motori sono a pistoni a quattro cilindri con un sistema di carburazione del tipo *mpfi*, ossia a iniezione multi-point.
+
+<br>
+
+## 2. Analisi univariata - variabili continue
+
+Per le variabili di tipo **continuo**, per poterle analizzare, una possibilità è usare strumenti come **boxplot**, **istogrammi** e **curve di densità**; usandoli insieme, è possibile visualizzare sia in maniera intuitiva (attraverso gli istogrammi e le curve di densità) che in maniera più dettagliata (boxplot) la distribuzione della variabile considerata:
+
+<br>
+
+### Misurazioni del motore
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=length)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(140, 210)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=length)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(140, 210)) +
+  xlab("") +
+  ggtitle("Length - lunghezza") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1, heights = c(0.6, 1), align = "v")
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=width)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(60, 73)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=width)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(60, 73)) +
+  xlab("") +
+  ggtitle("Width - larghezza") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1,heights = c(0.6, 1), align = "v")
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=height)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(47, 62)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=height)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(47, 62)) +
+  xlab("") +
+  ggtitle("Height - altezza") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1, align = "v", heights = c(0.6, 1))
+
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p3 <- ggplot(data=data, aes(x=bore)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(2.5, 4)) +
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p4 <- ggplot(data=data, aes(x=bore)) +
+  geom_boxplot(col=c("#82A899")) + 
+  coord_cartesian(xlim = c(2.5, 4)) +
+  xlab("") +
+  ggtitle("Bore - diametro dei cilindri") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+library(ggpubr)
+ggarrange(p4, p3, ncol=1, nrow=2, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p5 <- ggplot(data=data, aes(x=stroke)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(2, 4.5)) +
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p6 <- ggplot(data=data, aes(x=stroke)) +
+  geom_boxplot(col=c("#82A899")) + 
+  coord_cartesian(xlim = c(2, 4.5)) +
+  xlab("") +
+  ggtitle("Stroke - corsa") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+library(ggpubr)
+ggarrange(p6, p5, ncol=1, nrow=2, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=compressionRatio)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(5.5, 25)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=compressionRatio)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(5.5, 25)) +
+  xlab("") +
+  ggtitle("Compression ratio - rapporto di compressione") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1, align = "v", heights = c(0.6, 1))
+
+```
+
+<br> <br>
+
+### Caratteristiche dei veicoli
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p7 <- ggplot(data=data, aes(x=horsepower)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(40, 220)) +
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p8 <- ggplot(data=data, aes(x=horsepower)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(40, 220)) +
+  xlab("") +
+  ggtitle("Horsepower - cavalli di potenza") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+library(ggpubr)
+ggarrange(p8, p7, ncol=1, nrow=2, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p9 <- ggplot(data=data, aes(x=peakRpm)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(4000, 7000)) +
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p10 <- ggplot(data=data, aes(x=peakRpm)) +
+  geom_boxplot(col=c("#82A899")) + 
+  coord_cartesian(xlim = c(4000, 7000)) +
+  xlab("") +
+  ggtitle("Peak RpM - giri per minuto massimi") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+ggarrange(p10, p9, ncol=1, nrow=2, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=cityMpg)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(10, 50)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=cityMpg)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(10, 50)) +
+  xlab("") +
+  ggtitle("City MpG - Miglia per gallone in città") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1, align = "v", heights = c(0.6, 1))
+
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(data=data, aes(x=highwayMpg)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(10, 50)) + 
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p2 <- ggplot(data=data, aes(x=highwayMpg)) +
+  geom_boxplot(col=c("#82A899")) +
+  coord_cartesian(xlim = c(10, 50)) +
+  xlab("") +
+  ggtitle("Highway MpG - miglia per gallone in autostrada") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+ggarrange(p2, p1, ncol=1, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p11 <- ggplot(data=data, aes(x=price)) +
+  geom_histogram(aes(y = ..density..),  fill=c("#82A899")) + 
+  geom_density(col=c("#5F021F")) + 
+  coord_cartesian(xlim = c(5000, 40000)) +
+  xlab("")+
+  ylab("Density") +
+  #ggtitle("Density curve - Normalized Losses") +
+  #theme(plot.title = element_text(hjust = 0.5)) +
+  labs(colour="Legend")
+
+p12 <- ggplot(data=data, aes(x=price)) +
+  geom_boxplot(col=c("#82A899")) + 
+  coord_cartesian(xlim = c(5000, 40000)) +
+  xlab("") +
+  ggtitle("Price - prezzo") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+
+library(ggpubr)
+ggarrange(p12, p11, ncol=1, nrow=2, align = "v", heights = c(0.6, 1))
+```
+
+<br>
+
+<hr>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+#data <- na.omit(data)
+```
+
+## 3. Analisi bivariata
+
+## Analisi collineare
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggcorr(data, hjust = .9, size = 4,angle = 0, color = "grey20",layout.exp = 1,        low = "darkred", mid = "white", high = "steelblue",        label =T,label_size = 3, label_color = "grey20")
+```
+
+<br> <br>
+
+#### *Engine Size e cilindrata*
+
+Una prima analisi si può effettuare rispetto alle variabili *EngineSize* (cilindrata) e le variabili *NumOfCylinders*, *Bore*, *Stroke*.
+
+La variabile *EngineSize* può essere calcolata dalle altre variabili seguendo la formula:
+
+$$EngineSize = \pi \cdot \left(\frac{Bore}{2}\right)^2 \cdot Stoke \cdot NumOfCylinders$$Infatti, se la calcoliamo otteniamo, tranne che per 5 valori dati probabilmente da errori nel dataset, una perfetta linearità.\
+Si noti che la variabile *Cilindrata* viene calcolata con una formula lievemente diversa per ottenere un risultato con unità di misura del sistema internazionale:
+
+<br>
+
+```{r echo = TRUE, warning = FALSE, message = FALSE}
+Cylinders = data$numOfCylinders 
+levels(Cylinders) = c(2, 3, 4, 5, 6, 8, 12) 
+Cilindrata = pi*(data$bore*2.54/2)^2*data$stroke*2.54*as.numeric(as.character(Cylinders))
+```
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x = engineSize, y = Cilindrata )) +   
+  geom_point() +   
+  geom_smooth(se = F, method = 'lm') +   
+  xlab("Engine Size") +   
+  ylab("Cilindrata") +   
+  ggtitle("Scatter plot di Engine Size vs Cilindrata")
+```
+
+Osserviamo ora le relazioni di *EngineSize* con le altre variabili.
+
+<br><br>
+
+#### *EngineSize con numOfCylinder*
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+d = data$numOfCylinders 
+d = factor(d, levels = c("two", "three", "four", "five", "six", "eight", "twelve"))  
+counts = table(d) 
+data_counts = data.frame(d = names(counts), count = as.vector(counts))  
+ggplot(data, aes(d, engineSize)) +   
+  geom_boxplot(fill=c("#82A899")) +   xlab("Numero di cilindri") +   ylab("Engine Size") +   ggtitle("Boxplot di Engine Size con Numero di cilindri") +   scale_x_discrete(labels=unname(xlab['numOfCylinders']))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(aov(data$engineSize~data$numOfCylinder))
+```
+
+Il test *ANOVA* suggerisce grande una correlazione di *EngineSize* con il numero di cilindri.
+
+Nel boxplot, infatti, si nota come la variabile *EngineSize* aumenta con l'aumentare dei cilindri.
+
+<br><br>
+
+#### *EngineSize con Bore*
+
+La variabile *EngineSize* aumenta linearmente anche con la variabile *Bore*, che rappresenta il diametro dei cilindri.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(bore, engineSize)) +   geom_point() +   geom_smooth(se = F, method = 'lm') +   xlab("Bore") +   ylab("Engine Size") +   ggtitle("Scatterplot di Engine Size con Bore")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$engineSize~data$bore))
+```
+
+Lo scatterplot e il **p-value** del `summary()` mostra come ci sia un'alta correlazione tra le due variabili.
+
+<br><br>
+
+#### *EngineSize con Stroke*
+
+Osserviamo innanzitutto lo scatterplot tra la cilindrata e *Stroke*, ossia l'altezza di ogni cilindro.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(stroke, engineSize)) +   geom_point() +   geom_smooth(se = F, method = 'lm') +   xlab("Stroke") +   ylab("Engine Size") +   ggtitle("Scatterplot di Engine Size con Stroke")
+```
+
+Non sembra esserci un netto aumento della cilindrata con l'aumentare della variabile *stroke*.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$engineSize~data$stroke))
+```
+
+La correlazione positiva di *EngineSize* con *Stroke*, seppur presente, risulta nettamente inferiore rispetto alle variabili precedenti.
+
+<br>
+
+#### Conclusione
+
+Si ritiene che la variabile *EngineSize* sia sufficiente per spiegare le altre variabili presenti nel dataset e che le variabili *NumOfCylinders*, *Bore*, *Stroke* non porterebbero ad alcun miglioramento di un eventuale modello.
+
+Dato che è presente un'alta correlazione con le variabili *numOfCylinder* e *Bore*, risulta essere sensato che esse possano essere sostituite da *EngineSize*.
+
+Nonostante non ci sia una forte correlazione tra le variabili *EngineSize* e *Stroke*, si decide comunque di non considerare la variabile *Stroke*, in quanto, come si può notare facilmente dalla matrice di correlazione proposta precedentemente, essa non spiega bene nessuna delle altre variabili.
+
+Inoltre risulta essere sensato non considerare le variabili *NumOfCylinders*, *Bore*, *Stroke* in quanto *EngineSize* risulta essere un calcolo diretto di quest'ultime.
+
+<br> <br> <br>
+
+#### *Compression ratio & fuel type*
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+counts = table(data$fuelType) 
+data_counts = data.frame(fuelType = names(counts), count = as.vector(counts))   
+ggplot(data, aes(fuelType, compressionRatio)) +   
+  geom_boxplot(fill=c("#82A899")) +   
+  xlab("fuelType") +   
+  ylab("compressionRatio") +   
+  ggtitle("Scatterplot di compressionRatio con fuelType") +   
+  scale_x_discrete(labels=unname(xlab['fuelType'])) 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(aov(data$compressionRatio~data$fuelType))
+```
+
+Si può notare come la scelta di *fuelType* porti ad avere un *compressionRatio* nettamente diverso.
+
+Dato che la variabilità del *CompressionRatio* risulta essere bassa, si decide, per semplicità, di tenere solo la variabile *fuelType*.
+
+<br> <br> <br>
+
+Passiamo ora all'analizzare la colliearità delle variabili *width*, *length*, *height*, *wheelBase* e *curbWeight*.
+
+<br>
+
+#### *length con wheelBase*
+
+Dato che la variabile *wheelBase* indica la distanza tra le ruote anteriori e quelle posteriori, sembra sensato pensare che più è lunga un'auto più questa distanza aumenti. Vediamo ora lo scatterplot:
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(length, wheelBase)) +   geom_point() +   geom_smooth(se = F, method = 'lm') +   ylab("wheelBase") +   xlab("length") +   ggtitle("Scatterplot di length con wheelBase")
+```
+
+Si può notare come i valori si dispongano molto precisamente su una retta.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$wheelBase~data$length))
+```
+
+Il **p-value** del `summary()` dà conferma dell'elevata correlazione. Si ha anche un elevato valore dell'**R-quadro** e un valore vicino allo 0 del **Pr(\>\|t\|)** dell'intercetta e del coefficiente. Possiamo dedurre che la variabile *length* spieghi bene la variabile *wheelBase* e possa sostituirla, dato che, di fatto, indica una caratteristica molto simile.
+
+<br>
+
+#### *curbWeight con length*
+
+Si considera che, se un'auto risulta essere più lunga rispetto a un'altra, probabilmente essa risulta essere anche più pesante.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(curbWeight, length)) +   geom_point() +   geom_smooth(se = F, method = 'lm') +   ylab("length") +   xlab("curbWeight") +   ggtitle("Scatterplot di curbWeight con length")
+```
+
+Lo scatterplot conferma la nostra ipotesi. I dati si dispongono in maniera lineare.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$length~data$curbWeight))
+```
+
+Anche in questo caso i valori del **p-value** e dei **Pr(\>\|t\|)** dell'intercetta e del coefficiente angolare risultano essere vicini allo 0, e l'**R-quadro** elevato.
+
+<br>
+
+#### *curbWeight con width*
+
+Si considera che, se un'auto risulta essere più larga rispetto a un'altra, probabilmente essa risulta essere anche più pesante.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(curbWeight, width)) +   geom_point() +   geom_smooth(se = F, method = 'lm') +   ylab("width") +   xlab("curbWeight") +   ggtitle("Scatterplot di curbWeight con width")
+```
+
+Lo scatterplot conferma la nostra ipotesi. I dati si dispongono in maniera lineare.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$width~data$curbWeight)) 
+```
+
+Anche in questo caso i valori del **p-value** e dei **Pr(\>\|t\|)** dell'intercetta e del coefficiente angolare risultano essere vicini allo 0, e l'**R-quadro** elevato.
+
+<br>
+
+#### *curbWeight con height*
+
+Si considera che, se un'auto risulta essere più alta rispetto a un'altra, probabilmente essa risulta essere anche più pesante.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(curbWeight, height)) +      geom_point() +     geom_smooth(se = F, method = 'lm') +      ylab("height") +      xlab("curbWeight") +      ggtitle("Scatterplot di curbWeight con height")
+```
+
+Lo scatterplot non sembra confermare con certezza la nostra ipotesi. I dati si dispongono in maniera piuttosto casuale, anche se si può comunque notare una correlazione positiva.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$height~data$curbWeight)) 
+```
+
+Il valore del **p-value** risulta essere minore di 0.05, mostrando come ci sia una correlazione, anche se non elevata.
+
+<br>
+
+#### *Volume*
+
+Si può anche fare un'approssimazione del volume di un'auto e metterlo in relazione alla massa.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+volume = data$height*data$length*data$width 
+```
+
+Si mostra ora lo scatterplot:
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(curbWeight, volume)) +      geom_point() +      geom_smooth(se = F, method = 'lm') +      ylab("volume") +      xlab("curbWeight") +      ggtitle("Scatterplot di curbWeight con il volume")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(volume~data$curbWeight)) 
+```
+
+Si può notare come sia presente una forte correlazione.
+
+<br>
+
+#### Conclusione
+
+È evidente che le variabili *length* e *wheelBase* mostrano una forte correlazione e forniscono informazioni simili nelle analisi statistiche. Pertanto si ha una collinearità delle due variabili.
+
+Analogamente, sebbene ci sia siano degli scarti non trascurabili nel modello lineare, sembra esserci collinearità tra le variabili *width*, *length* e la variabile *curbWeight*. Nonostante le variabili descrivano caratteristiche diverse di un'auto, la larghezza e la lunghezza di un veicolo tendono ad influenzare direttamente il suo peso a vuoto secondo uno schema lineare. Si decide quindi di tenere la variabile *curbWeight*.
+
+Infine, si osserva che non è presente una collinearità tra *height* e *curbWeight* in quanto le caratteristiche descritte sono diverse e non è presente una netta linearità tra le due variabili.
+
+<br> <br> <br>
+
+#### *highwayMpg e cityMpg*
+
+Passiamo ora all'analizzare la collinearità delle variabili *cityMpg* e *highwayMpg*. Si pensa che se un'auto consuma molto in città, consumerà molto anche in autostrada.
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(highwayMpg, cityMpg)) +      geom_point() +      geom_smooth(se = F, method = 'lm') +      ylab("cityMpg") +      xlab("highwayMpg") +      ggtitle("Scatterplot di cityMpg con highwayMpg")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm(data$cityMpg~data$highwayMpg)) 
+```
+
+Si nota dallo scatterplot come i dati si dispongano in una retta.
+
+Il valore **p-value** e dei **Pr(\>\|t\|)** dell'intercetta e del coefficiente angolare risultano essere vicini allo 0 e l'**R-quadro** molto elevato.
+
+Si può dedurre che le due variabili spieghino di fatto la stessa caratteristica e che dunque sia presente una collinearità tra le due variabili.
+
+Si decide dunque di tenere la variabile *cityMpg* in quanto lo si ritiene un dato più rilevante nella scelta di acquisto di un'auto per un individuo medio.
+
+<br> <br><br>
+
+### Analisi bivariata rispetto alla variabile *price*
+
+Oltre all'analisi univariata, è interessante considerare anche il rapporto che c'è tra coppie di variabili attraverso strumenti come i boxplot e diversi test statistici, introducendo l'analisi con una matrice di correlazione:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+data.corr <- subset(data, select=c(price, cityMpg, horsepower, engineSize, curbWeight, compressionRatio, peakRpm))
+ggcorr(data.corr, hjust = .9, size = 4,angle = 0, color = "grey20",layout.exp = 1,
+       low = "darkred", mid = "white", high = "steelblue",
+       label =T,label_size = 3, label_color = "grey20")
+```
+
+Della matrice ci concentriamo soprattutto sulla variabile *price* e come essa correli con le altre variabili.
+
+Si può notare che la variabile *cityMpg* è correlata negativamente con il prezzo $(-0.7)$. Facendo una prima ipotesi si può supporre che all'aumentare dei consumi aumenti anche il prezzo dell'auto.
+
+Un'altra forte correlazione si nota con la variabile *horsepower* $(0.8)$ e con engineSize $(0.9)$. Queste sono caratteristiche del motore e pare logico pensare che all'aumentare della potenza o della dimensione del motore aumenti anche il prezzo dell'auto.
+
+Infine ci sono le variabili che dipendono di più dalla struttura dell'auto, come *height* $(0.1)$, *length* $(0.7)$ e *width* $(0.8)$. Di queste la variabile più esplicativa sembra però *curbWeight* $(0.8)$. Quindi sembra che all'aumentare del peso (e di conseguenza delle dimensioni) dell'auto, il prezzo aumenti.
+
+<br>
+
+### Boxplot condizionati
+
+Dopo aver analizzato superficialmente le variabili numeriche in una matrice di correlazione, ci concentriamo sulle variabili categoriali e come esse interagiscano con la variabile *price*. Un modo efficacie per farlo è certamente lo studio attraverso dei Boxplot condizionati, in cui viene considerato il legame tra una variabile numerica rispetto ad una variabile categoriale, per vedere come si distribuisce rispetto ai diversi livelli.
+
+```{r include=FALSE, echo=FALSE, warning=FALSE, message=FALSE}
+factor_col<-names(Filter(is.factor, data))
+x_labf <- function(data){
+  paste(levels(data),"\n(N=",table(data),")",sep="")
+}
+xlab<-sapply(data[,factor_col],x_labf)
+```
+
+<br>
+
+#### *price \~ symboling*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x = symboling, y = price)) +
+  geom_boxplot(col=c("#82A899")) +
+  scale_x_discrete(labels=unname(xlab['symboling']))+
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0.5), axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=0.5, size=10)) +
+  coord_flip()
+```
+
+Dal grafico si vede che con il discostarsi dai valori centrali il prezzo tende ad aumentare, inoltre:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+symboling.aov <- aov(price~symboling, data=data)
+summary(symboling.aov)
+```
+
+Il test *ANOVA* conferma una dipendenza della variabile *symboling* alla variabile *price*.
+
+<br>
+
+#### *price \~ make*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=make, y=price)) +
+  geom_boxplot(col=c("#82A899")) +
+  scale_x_discrete(labels=unname(xlab['make'])) +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0.5), axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=0.5, size=5)) +
+  coord_flip()
+```
+
+Prendendo le variabili *make* e *price* risulta lampante la dipendenza del prezzo dalla marca dell'auto, infatti:
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE}
+symboling.aov <- aov(price~make, data=data)
+summary(symboling.aov)
+```
+
+Il test *ANOVA* da una forte correlazione tra le variabili. Se la variabile precedente è più difficile da spiegare, il fatto che le auto cambino di prezzo dipendentemente dal produttore ci sembra più intuitivo.
+
+<br>
+
+#### *price \~ fuelType*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=fuelType, y=price))+
+  geom_boxplot(col=c("#82A899"))+
+  scale_x_discrete(labels=unname(xlab['fuelType']))
+```
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE}
+symboling.aov <- aov(price~fuelType, data=data)
+summary(symboling.aov)
+```
+
+La relazione tra *fuelType* e *price* sembra invece far propendere per una sostanziale indipendenza delle variabili. Il test *ANOVA* sembra dare un valore parecchio elevato per rifiutare l'ipotesi di indipendenza.
+
+<br>
+
+#### *price \~ bodyStyle*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=bodyStyle, y=price))+
+  geom_boxplot(col=c("#82A899"))+
+  scale_x_discrete(labels=unname(xlab['bodyStyle']))
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+symboling.aov <- aov(price~bodyStyle, data=data)
+summary(symboling.aov)
+```
+
+Invece la variabile *bodyStyle* sembra presentare una dipendenza dal prezzo apprezzabile. Questo può essere dipeso dal fatto che una forma particolare del telaio può richiedere più costo nell'essere ideata, in più auto con motori più potenti tendono ad avere intelaiature simili.
+
+<br>
+
+#### *price \~ driveWheels*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=driveWheels, y=price))+
+  geom_boxplot(col=c("#82A899"))+
+  scale_x_discrete(labels=unname(xlab['driveWheels']))
+```
+
+Dal tipo di trazione dell'auto sembra dipendere molto il prezzo, soprattutto per le auto con trazione posteriore, che aumentano di molto di prezzo.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+symboling.aov <- aov(price~driveWheels, data=data)
+summary(symboling.aov)
+```
+
+Questa ipotesi sembra essere corroborata anche dal test *ANOVA*. Questo aumento di prezzo per le auto a trazione posteriore può essere spiegato con la difficoltà ingegneristica nella costruzione.
+
+<br>
+
+#### *price \~ engineType*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=engineType, y=price))+
+  geom_boxplot(col=c("#82A899"))+
+  scale_x_discrete(labels=unname(xlab['engineType']))
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+symboling.aov <- aov(price~engineType, data=data)
+summary(symboling.aov)
+```
+
+Il prezzo sembra dipendere anche dal tipo di motore.
+
+<br>
+
+#### *price \~ fuelSystem*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data, aes(x=fuelSystem, y=price))+
+  geom_boxplot(col=c("#82A899"))+
+  scale_x_discrete(labels=unname(xlab['fuelSystem']))
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+symboling.aov <- aov(price~fuelSystem, data=data)
+summary(symboling.aov)
+```
+
+Il tipo di iniezione sembra avere una forte dipendenza con il prezzo. Un problema con questa variabile però è la scarsa numerosità di certe categorie, fino a ridursi, in due categorie, a un singolo valore.
+
+<hr>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+data <- na.omit(data)
+```
+
+Dopo aver analizzato la matrice di correlazione bisogna andare ad indagare più approfonditamente, cercando di spiegare il legame che lega la variabile *price* con le altre.
+
+Per questo uno strumento molto utile è il tracciare una curva con il metodo loess, che passi più vicino possibile ai punti del grafico, per far emergere un andamento da esso.
+
+A questo si può aggiungere il calcolo della correlazione tra una variabile e la trasformata dell'altra per vedere se le variabili aumentano la loro correlazione.
+
+<br>
+
+#### *price \~ height*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=height, y=price))+
+  geom_point()+geom_smooth(se=F)
+```
+
+Nel grafico si vede un'andamento particolare che può ricordare una funzione cubica. A differenza però di quello che la curva suggerisce la correlazione tra l'altezza e il valore cubico del prezzo è molto basso, quindi la consideriamo poco esplicativa.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+cor(data$height,I((data$price)^3))
+```
+
+<br>
+
+#### *price \~ curbWeight*
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=curbWeight, y=price))+geom_point()+geom_smooth(se=F)
+```
+
+Questa volta si vede una curva che suggerisce un'andamento esponenziale e a differenza del precedente vi è una forte correlazione tra il logaritmo del prezzo e il peso della vettura.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+cor(I(log(data$price)), data$curbWeight)
+```
+
+<br>
+
+#### *price \~ engineSize*
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=engineSize, y=price))+geom_point()+geom_smooth(se=F)
+```
+
+In questo caso la curva nel grafico può trarre in inganno, per la coda di sinistra che cresce al ridursi delle dimensioni del motore (effetto prodotto dai pochi dati che deviano significativamente l'andamento) e dai valori a destra che sembrano appiattirsi.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+cor(data$price, data$engineSize)
+```
+
+La correlazione però va ad indicare che il rapporto più probabile è proprio quello lineare.
+
+<br>
+
+#### *price \~ horsepower*
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=horsepower, y=price))+geom_point()+geom_smooth(se=F)
+```
+
+In questo grafico la curva sembra quasi trasformarsi in una retta, a suggerire un andamento lineare, che è anche quello suggerito dalla correlazione.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+cor(data$price, data$horsepower)
+```
+
+<br>
+
+#### *price \~ cityMpg*
+
+<br>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(data,aes(x=cityMpg, y=price))+
+  geom_point()+
+  geom_smooth(se=F)
+```
+
+La curva disegnata nel grafico sembra molto simile a quella di una esponenziale inversa. Dal valore della correlazione non emergono sorprese, rafforzando la teoria di un'esponenziale inversa:
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+cor(I(-log(data$price)), data$cityMpg)
+```
+
+### Conclusioni
+
+Queste analisi hanno fatto emergere dei rapporti tra variabili che però necessitano di studio aggiuntivo con modelli di regressione bivariata e successivamente multivariata. Pertanto questi valori sono un punto di partenza per i modelli che verranno studiati nel prossimo capitolo.
+
+<br>
+
+## 4. Modelli di regressione - lineare
+
+Sono stati valutati i modelli di regressione lineare utilizzando come variabile dipendente il prezzo dell'auto. Nella seguente immagine sono indicati, in ordine decrescente, i valori di $R^2$ per ciascuna variabile. La significatività del modello è indicata dal colore dei punti.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+data<-read.csv('imports-85.data',sep = ',',header = F,na.strings = '?',stringsAsFactors = T)
+data<-data[,-2]
+colnames(data)<-c('symboling','make','fuelType','aspiration','numOfDoors',
+    'bodyStyle','driveWheels','engineLocation','wheelBase','length','width',
+    'height','curbWeight','engineType','numOfCylinders','engineSize',
+    'fuelSystem','bore','stroke','compressionRatio','horsepower','peakRpm',
+    'cityMpg','highwayMpg','price')
+data$bore[is.na(data$bore)]<-mean(data$bore,na.rm = T)
+data$stroke[is.na(data$stroke)]<-mean(data$stroke,na.rm = T)
+data$horsepower[is.na(data$horsepower)]<-mean(data$horsepower,na.rm = T)
+data$peakRpm[is.na(data$peakRpm)]<-mean(data$peakRpm,na.rm = T)
+data<-na.omit(data)
+data$symboling<-factor(data$symboling)
+data$curbWeight<-as.numeric(data$curbWeight)
+data$engineSize<-as.numeric(data$engineSize)
+data$cityMpg<-as.numeric(data$cityMpg)
+data$highwayMpg<-as.numeric(data$highwayMpg)
+data$price<-as.numeric(data$price)
+data<-subset(data, select=- c(length,width,wheelBase,bore,stroke,numOfCylinders,
+                       compressionRatio,cityMpg,engineLocation))
+factor_col<-names(Filter(is.factor, data))
+num_col<-names(Filter(is.numeric, data))
+num_col<-num_col[-length(num_col)]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+lm_height<-lm(price~height, data = data)
+lm_curbWeight<-lm(price~curbWeight, data = data)
+lm_engineSize<-lm(price~engineSize, data = data)
+lm_horsepower<-lm(price~horsepower, data = data)
+lm_peakRpm<-lm(price~peakRpm, data = data)
+lm_highwayMpg<-lm(price~highwayMpg, data = data)
+lm_list<-list(lm_height,lm_curbWeight,lm_engineSize,lm_horsepower,
+              lm_peakRpm,lm_highwayMpg)
+get_pval <- function (lm_obj) {
+  f <- summary(lm_obj)$fstatistic
+  p <- pf(f[1],f[2],f[3],lower.tail=F)
+  attributes(p) <- NULL
+  return(p)
+}
+get_adj.r.squared<-function(lm_obj){
+  summary(lm_obj)$adj.r.squared
+}
+lin_models_pvalue<-sapply(lm_list, get_pval)
+lin_models_pvalue[lin_models_pvalue<1e-16]<- '1e-16 ***'
+lin_models_pvalue[lin_models_pvalue<0.001]<- '0.001 **'
+lin_models_pvalue[lin_models_pvalue<0.01]<- '0.01 *'
+lin_models_pvalue[lin_models_pvalue<0.05]<- '0.05 .'
+lin_models_pvalue[lin_models_pvalue<1]<- 'n.s.'
+
+
+lin_model_adj.r.squared<-sapply(lm_list, get_adj.r.squared)
+linModelResults<-as.matrix(cbind(lin_model_adj.r.squared,lin_models_pvalue))
+rownames(linModelResults)<-num_col
+linModelResults<-as.data.frame(linModelResults)
+linModelResults$lin_models_pvalue<-factor(linModelResults$lin_models_pvalue)
+linModelResults$lin_model_adj.r.squared<-as.numeric(linModelResults$lin_model_adj.r.squared)
+linModelResults<-linModelResults[order(linModelResults$lin_model_adj.r.squared, decreasing = TRUE), ]
+linModelResults$id<-1:6
+ggplot(linModelResults,aes(x = id,y = lin_model_adj.r.squared, label = rownames(linModelResults), color=lin_models_pvalue))+
+  geom_point()+
+  geom_text(angle = 0,hjust = 0, nudge_x = 0.1)+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())+
+  labs(x = "", y='Rsquared')+
+  xlim(0, 7)+
+  ylim(0,1)
+
+```
+
+<br>
+
+### Analisi dei modelli
+
+Si osserva che le variabili *engineSize, curbweight, horsepower* e *highwayMpg* risultano significative con p-value minori di $10^{-16}$.
+
+<br>
+
+#### *price* *\~ engineSize*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data,aes(x=engineSize,y=price)) +   
+  geom_point(colour="black") +   
+  geom_smooth(method='lm',formula = y~x, se=F)+   
+  geom_point(data=data[46, ], aes(x=engineSize, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(46),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_engineSize)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *engineSize* mostra un $R^2$ pari a $0.7594$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = -7954.991
+
+-   **Pendenza** = 166.851
+
+L'aumento di 1 unità di *engineSize* corrisponde all'aumento di 166.851 dollari per il prezzo. Il valore dell'intercetta -7954.991 non ha un interpretazione reale.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_engineSize)
+```
+
+-   **residual vs fitted**: si osserva un distribuzione dei residui lineare con un aumento di varianza per valori medi di *engineSize*
+
+-   **QQ-residual**: si osserva una violazione della normalità dei residui in prossimità delle code, in particolare per la coda destra
+
+-   **scale-location**: si osserva una violazione di omoschedasticità
+
+-   **residual Vs leverage**: si osserva la presenza di un valore outlier
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_engineSize, aes(x=lm_engineSize$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+#### *price* *\~ curbWeight*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data,aes(x=curbWeight,y=price)) +   
+  geom_point(colour="black") +   
+  geom_smooth(method='lm',formula = y~x, se=F)+
+  geom_point(data=data[c(16,69,70), ], aes(x=curbWeight, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(122,123,124,16,69,70),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_curbWeight)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *curbWeight* mostra un $R^2$ pari a $0.6941$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = -19543.945
+-   **Pendenza** = 12.817
+
+L'aumento di 1lb del veicolo corrisponde all'aumento di 12.817 dollari per il prezzo. Il valore dell'intercetta non ha un interpretazione reale, non è possibile che un automobile di peso nullo costi -19543.945 dollari.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_curbWeight)
+```
+
+-   **residual vs fitted**: si osserva una andamento lineare con una leggera curvatura. Si evidenzia un notevole aumento di varianza e relativa assenza di omoschedasticità
+-   **QQ-residual**: residui appaiono distribuiti normalmente solo per i valori intermedi, si evidenza una violazione di normalità molto marcata in prossimità delle code, in particolare la coda destra
+-   **scale-location**: si conferma il notevole aumento di varianza osservato nel grafico residual vs fitted
+-   **residual Vs leverage**: non si osservano dati outlier, ma si evidenza la possibile presenza di valori anomali
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_curbWeight, aes(x=lm_curbWeight$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   xlab("Residual") +   ylab("Density")
+```
+
+<br><br>
+
+#### *price* *\~ horsepower*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data,aes(x=horsepower,y=price)) +   
+  geom_point(colour="black") +   
+  geom_smooth(method='lm',formula = y~x, se=F)+   
+  geom_point(data=data[c(69,70), ], aes(x=horsepower, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(17,69,70),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_horsepower)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *horsepower* mostra un $R^2$ pari a $0.656$. I parametri stimati per l'intercetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = -4659.37
+-   **Pendenza** = 172.78
+
+L'aumento di 1 cavallo del veicolo corrisponde all'aumento di 172.78 dollaro per il prezzo. Il valore dell'intercetta non ha un interpretazione reale, non è possibile che un automobile di 0 cavalli costi -4659.37 dollari.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_horsepower)
+```
+
+-   **residual vs fitted**: si osserva una sostanziale linearità del modello con una leggera curvatura. Si evidenzia un aumento della varianza all'aumentare di *horsepower*
+-   **QQ-residual**: si osserva una violazione della normalità dei residui evidenziata da una coda pesante a destra
+-   **scale-location**: si conferma un aumento di varianza all'aumentare di *horsepower*
+-   **residual Vs leverage**: non si osservano dati outlier. Si osservano dei possibili valori anomali
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_horsepower, aes(x=lm_horsepower$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+#### *price* *\~ highwayMpg*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data,aes(x=horsepower,y=price)) +   
+  geom_point(colour="black") +   
+  geom_smooth(method='lm',formula = y~x, se=F)+   
+  geom_point(data=data[c(18,70,29), ], aes(x=horsepower, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(18,70,29),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_highwayMpg)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *highwayMpg* mostra un $R^2$ pari a $0.4989$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = 38687.64
+-   **Pendenza** = -830.64
+
+L'aumento di 1 unità di *highwayMpg* corrisponde ad una diminuizione di 830.64 dollari per il prezzo. Non ha senso interpretare l'intercetta in quanto rappresenta il prezzo di una macchina che fa 0 miglia con 1 gallone, ovvero ha un consumo infinito.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_highwayMpg)
+```
+
+-   **residual vs fitted**: si osserva un andamento non lineare e un aumento della varianza all'aumentare di highwayMpg
+-   **QQ-residual**: si osserva una notevole violazione di gaussianità dei residui in prossimità della coda destra
+-   **scale-location**: si conferma un andamento non lineare e una violazione di omoschedasticità
+-   **residual Vs leverage**: non osserva la presenza di valori outlier ma si evidenziano dei possibili valori anomali
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_highwayMpg, aes(x=lm_highwayMpg$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+### Trasformazioni non lineari
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+logPrice = log(data$price)
+data <- cbind(data, logPrice)
+```
+
+L'analisi è stata ripetuta in maniera analoga (costruzione del modello lineare, valutazione del summary e dei residui), considerando una trasformazione logaritmica sulla variabile *price*, scelta vista la distribuzione fortemente asimmetrica con una lunga coda a destra della variabile e date le sue relazioni esponenziali con diverse variabili del dataset:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+lm_height<-lm(logPrice~height, data = data)
+lm_curbWeight<-lm(logPrice~curbWeight, data = data)
+lm_engineSize<-lm(logPrice~engineSize, data = data)
+lm_horsepower<-lm(logPrice~horsepower, data = data)
+lm_peakRpm<-lm(logPrice~peakRpm, data = data)
+lm_highwayMpg<-lm(logPrice~highwayMpg, data = data)
+lm_list<-list(lm_height,lm_curbWeight,lm_engineSize,lm_horsepower,
+              lm_peakRpm,lm_highwayMpg)
+get_pval <- function (lm_obj) {
+  f <- summary(lm_obj)$fstatistic
+  p <- pf(f[1],f[2],f[3],lower.tail=F)
+  attributes(p) <- NULL
+  return(p)
+}
+get_adj.r.squared<-function(lm_obj){
+  summary(lm_obj)$adj.r.squared
+}
+lin_models_pvalue<-sapply(lm_list, get_pval)
+lin_models_pvalue[lin_models_pvalue<1e-16]<- '1e-16 ***'
+lin_models_pvalue[lin_models_pvalue<0.001]<- '0.001 **'
+lin_models_pvalue[lin_models_pvalue<0.01]<- '0.01 *'
+lin_models_pvalue[lin_models_pvalue<0.05]<- '0.05 .'
+lin_models_pvalue[lin_models_pvalue<1]<- 'n.s.'
+
+
+lin_model_adj.r.squared<-sapply(lm_list, get_adj.r.squared)
+linModelResults<-as.matrix(cbind(lin_model_adj.r.squared,lin_models_pvalue))
+rownames(linModelResults)<-num_col
+linModelResults<-as.data.frame(linModelResults)
+linModelResults$lin_models_pvalue<-factor(linModelResults$lin_models_pvalue)
+linModelResults$lin_model_adj.r.squared<-as.numeric(linModelResults$lin_model_adj.r.squared)
+linModelResults<-linModelResults[order(linModelResults$lin_model_adj.r.squared, decreasing = TRUE), ]
+linModelResults$id<-1:6
+ggplot(linModelResults,aes(x = id,y = lin_model_adj.r.squared, label = rownames(linModelResults), color=lin_models_pvalue))+
+  geom_point()+
+  geom_text(angle = 10,hjust = 0, nudge_x = 0.1)+
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())+
+  labs(x = "", y='Rsquared')+
+  xlim(0, 7)+
+  ylim(0,1)
+```
+
+<br><br>
+
+#### *log(price)* *\~ curbWeight*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+log_price_weight <- lm(logPrice ~ data$curbWeight)
+
+y_log_2 = function(x){
+    return( exp(coef(log_price_weight)[2]*x + coef(log_price_weight)[1]))
+    }
+  
+ggplot(data, aes(x = curbWeight, y = price)) +
+  stat_function(fun = y_log_2, color = "blue", size = 1.2)  +
+  labs(x = "Curb Weight", y = "Price")  +
+  geom_point(colour="black") + 
+  geom_point(data=data[c(122,123,124), ], aes(x=curbWeight, y=price), colour="red", size=2)
+```
+
+Nel seguente grafico sono evidenziati i valori 127,128,129 relativi ai modelli di porsche.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(122,123,124),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_curbWeight)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *curbWeight* mostra un $R^2$ pari a $0.7933$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$. Si ricorda che il prezzo è stato trasformato con una trasformazione logaritmica e per un'interpretazione corretta è necessario ritrasmormare il prezzo.
+
+-   **Intercetta** = 7.137e+00
+-   **Pendenza** = 8.657e-04
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_curbWeight)
+```
+
+-   **residual vs fitted**: la linea rossa parallela dimostra che la scelta di un modello lineare è appropriata. Si osserva una generale omoschedasticità con un leggero aumento della varianza all'aumentare del peso della macchina
+-   **QQ-residual:** si osserva una generale normalità dei residui con violazioni maggiori in corrispondenza delle code. I tre valori anomali sono dovuti a tre automobili di porsche
+-   **scale-location**: si osserva un aumento della varianza all'aumentare del peso della macchina. conferma quanto visto nel residual vs fitted
+-   **residual Vs leverage**: non si osservano dati outlier
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_curbWeight, aes(x=lm_curbWeight$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  ggtitle("Density plot of residuals") +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+Per osservare la validità della trasformazione, si considerano i grafici del modello lineare e non, rispettivamente in blu ed in rosso:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+
+log_price_weight <- lm(logPrice ~ data$curbWeight)
+
+y_log_2 = function(x){
+    return( exp(coef(log_price_weight)[2]*x + coef(log_price_weight)[1]))
+    }
+# ggplot con regressione lineare senza e con trasformazione
+ggplot(data, aes(x = curbWeight, y = price)) +
+    geom_point() +  # Punti dei dati
+    stat_function(fun = y_log_2, color = "red", size = 1.2)  +
+    geom_smooth(method = 'lm', formula = y~x, se = F)
+    labs(x = "Curb Weight", y = "Price")
+
+# ggplot con regressione lineare con trasformazione
+#ggplot(data, aes(x = curbWeight, y = price)) +
+#    geom_point() +
+#   stat_function(fun = y_log_2, color = "red", size = 1.2)  +
+#   labs(x = "Curb Weight", y = "Price")
+```
+
+<br><br>
+
+#### *log(price)* *\~ horsepower*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+log_price_horsepower <- lm(logPrice ~ data$horsepower)
+
+y_log_2 = function(x){
+    return( exp(coef(log_price_horsepower)[2]*x + coef(log_price_horsepower)[1]))
+    }
+
+ggplot(data, aes(x = horsepower, y = price)) +
+  stat_function(fun = y_log_2, color = "blue", size = 1.2)  +
+  labs(x = "Horsepower", y = "Price")  +
+  geom_point(colour="black") + 
+  geom_point(data=data[c(46,101), ], aes(x=horsepower, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(46,101),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_horsepower)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *horsepower* mostra un $R^2$ pari a $0.6953$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = 8.1871630
+
+-   **Pendenza** = 0.0112417
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_horsepower)
+```
+
+-   **residual vs fitted**: i residui mostrano una leggera curvatura ma in generale la linearità del modello pare rispettata. La varianza sembra avere un aumento all'aumentare dei cavalli della macchina
+-   **QQ-residual**: si osserva un eccellente normalità dei residui con violazioni per i valori di horsepower più bassi
+-   **scale-location**: si osserva un leggero aumento della varianza all'aumentare dei valori di horsepower
+-   **residual Vs leverage**: non si osservano dati outlyer, ma si osservano valori che si discostano leggermente dagli altri
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_horsepower, aes(x=lm_horsepower$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+#### *log(price)* *\~ engineSize*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+log_price_enginesize <- lm(logPrice ~ data$engineSize)
+
+y_log_2 = function(x){
+    return( exp(coef(log_price_enginesize)[2]*x + coef(log_price_enginesize)[1]))
+    }
+
+ggplot(data, aes(x = engineSize, y = price)) +
+  stat_function(fun = y_log_2, color = "blue", size = 1.2)  +
+  labs(x = "Engine Size", y = "Price")  +
+  geom_point(colour="black") + 
+  geom_point(data=data[c(46,69,70),], aes(x=engineSize,y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(46,69,70),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_engineSize)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *engineSize* mostra un $R^2$ pari a $0.6867$. I parametri stimati per l'intecetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = 8.077322
+-   **Pendenza** = 0.010033
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_engineSize)
+```
+
+-   **residual vs fitted**: si osserva una curvatura dei residui suggerendo una possibile dipendenza quadratica, la scelta del modello lineare potrebbe non essere ottimale
+-   **QQ-residual**: si osserva una generale distribuzione normale dei residui con una violazione in prossimità della coda sinistra
+-   **scale-location**: si osserva un leggero aumento della varianza all'aumentare del variabile engineSize
+-   **residual Vs leverage**: si osserva la presenza di un outlier e altri valori anomali
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_engineSize, aes(x=lm_engineSize$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +  
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+#### *log(price)* *\~ highwayMpg*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+log_price_highwayMpg <- lm(logPrice ~ data$highwayMpg)
+
+y_log_2 = function(x){
+    return( exp(coef(log_price_highwayMpg)[2]*x + coef(log_price_highwayMpg)[1]))
+    }
+
+ggplot(data, aes(x = highwayMpg, y = price)) +
+  stat_function(fun = y_log_2, color = "blue", size = 1.2)  +
+  labs(x = "Highway MpG", y = "Price")  +
+  geom_point(colour="black") + 
+  geom_point(data=data[c(18,29,86), ], aes(x=highwayMpg, y=price), colour="red", size=2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data[c(18,29,86),]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(lm_highwayMpg)
+```
+
+Il modello lineare stimato utilizzando come variabile indipendente *highwayMpg* mostra un $R^2$ pari a $0.6192$. I parametri stimati per l'intercetta e la pendenza della retta di regressione risultano entrambi significativi con p-value minore di $10^{-16}$.
+
+-   **Intercetta** = 11.14
+-   **Pendenza** = -0.0584
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow = c(2,2)) 
+plot(lm_highwayMpg)
+```
+
+-   **residual vs fitted**: si osserva una curvatura dei residui suggerendo una possibile dipendenza quadratica, la scelta del modello lineare potrebbe non essere ottimale
+
+-   **QQ-residual**: il grafico sembra sugerrire la presenza di due gruppi distinti nella variabile entrambi con distribuzione normale dei residui
+
+-   **scale-location**: si osserva maggiore varianza per valori piccoli di highwaryMpg, per gli altri valori invece si osserva una buona omoschedasticità
+
+-   **residual Vs leverage**: non osserva la presenza di valori outlyer ma si evidenziano dei possibili valori anomali
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(lm_highwayMpg, aes(x=lm_highwayMpg$residuals)) +   
+  geom_density(fill="blue", colour=NA, alpha=.2) +   
+  geom_line(stat = "density") +   
+  expand_limits(y = 0) +   
+  ggtitle("Density plot of residuals") +   
+  theme(plot.title = element_text(hjust = 0.5)) +   
+  xlab("Residual") +   
+  ylab("Density")
+```
+
+<br><br>
+
+### Conclusioni
+
+La comparazione tra i vari modelli di regressione lineare stimati porta alla conclusione che il modello che utilizza come predittore la variabile *curbWeight* e la variabile *price* in seguito ad una trasformazione logaritmica è il migliore; sia in termini di varianza spiegata, sia in termini di bontà del modello lineare nello studio dei residui.
+
+<br><br><br>
+
+<hr>
+
+## 5. Modelli di regressione - multivariata
+
+Dopo aver cercato modelli bivariati che riuscissero a spiegare dei legami tra le variabili, ora ci prefiggiamo di cercare il miglior modello (senza cadere nel rischio di overfitting) che riesca a spiegare la variabile *price*.
+
+Come prima cosa si è notato che prendere in considerazione la trasformazione della variabile *price* migliora significativamente il risultato che possiamo ottenere.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(MASS) 
+theme_set(theme_bw())
+
+data<-subset(data, select=- c(price))
+
+factor_col<-names(Filter(is.factor, data))
+num_col<-names(Filter(is.numeric, data))
+num_col<-num_col[-length(num_col)]
+```
+
+Si è deciso di dividere il dataset in due:
+
+-   il dataset per il **training**;
+
+-   il dataset per il **testing**.
+
+Questo ci da la possibilità di testare la solidità delle nostre previsioni e cercare quello migliore.
+
+Il dataset viene diviso in due con una funzione pseudocasuale che divide il dataset in 70% training set e 30% testing set.
+
+```{r, echo=FALSE}
+set.seed(1) 
+sample<-sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.7,0.3)) 
+train_data<-data[sample, ] 
+test_data<-data[!sample, ]
+```
+
+<br>
+
+Successivamente viene utilizzata la funzione `stepAIC()` che tenta automaticamente un gran numero di combinazioni di variabili per trovare il modello migliore.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# stepAIC funzione di MASS che trova il best multivariato 
+ml<-stepAIC(lm(logPrice~.,data = train_data))
+```
+
+<br>
+
+Vengono creati altri modelli, a due e tre variabili e poi valutati con il test dell'$R^2$ aggiustato.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Migliori modelli con due var indipendenti 
+
+ml1<-lm(logPrice~curbWeight+make,data = train_data)
+ml2<-lm(logPrice~horsepower+make,data = train_data) 
+ml3<-lm(logPrice~curbWeight+horsepower,data = train_data)
+
+
+# Migliori modelli con tre variabili indipendenti 
+
+ml4<-lm(logPrice~curbWeight+make+height,data = train_data) 
+ml5<-lm(logPrice~curbWeight+make+bodyStyle,data = train_data) 
+ml6<-lm(logPrice~curbWeight+make+horsepower,data = train_data)  
+
+
+# Modelli senza make 
+
+ml7<-lm(logPrice~curbWeight+horsepower+bodyStyle,data = train_data) 
+ml8<-lm(logPrice~curbWeight+horsepower+engineSize,data = train_data) 
+ml9<-lm(logPrice~curbWeight+horsepower+engineType,data = train_data) 
+ml10<-lm(logPrice~curbWeight+engineType+bodyStyle,data = train_data)
+
+mlt <- lm(logPrice~curbWeight+I(log(horsepower))+make, data = train_data)
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#R-squared adj 
+
+mlRsq.adj<-summary(ml)$adj.r.squared 
+ml1Rsq.adj<-summary(ml1)$adj.r.squared 
+ml2Rsq.adj<-summary(ml2)$adj.r.squared 
+ml3Rsq.adj<-summary(ml3)$adj.r.squared 
+ml4Rsq.adj<-summary(ml4)$adj.r.squared 
+ml5Rsq.adj<-summary(ml5)$adj.r.squared 
+ml6Rsq.adj<-summary(ml6)$adj.r.squared 
+ml7Rsq.adj<-summary(ml7)$adj.r.squared 
+ml8Rsq.adj<-summary(ml8)$adj.r.squared 
+ml9Rsq.adj<-summary(ml9)$adj.r.squared 
+ml10Rsq.adj<-summary(ml10)$adj.r.squared   
+
+mltRsq.adj <- summary(mlt)$adj.r.squared
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+mlRsq.adj_list<-c(mlRsq.adj,ml1Rsq.adj,ml2Rsq.adj,ml3Rsq.adj,ml4Rsq.adj,ml5Rsq.adj, ml6Rsq.adj,ml7Rsq.adj,ml8Rsq.adj,ml9Rsq.adj,ml10Rsq.adj, mltRsq.adj)
+```
+
+<br>
+
+Per valutare la qualità dei modelli è stato usato anche il test AIC.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+mlAIC<-AIC(ml) 
+ml1AIC<-AIC(ml1) 
+ml2AIC<-AIC(ml2) 
+ml3AIC<-AIC(ml3) 
+ml4AIC<-AIC(ml4) 
+ml5AIC<-AIC(ml5) 
+ml6AIC<-AIC(ml6) 
+ml7AIC<-AIC(ml7) 
+ml8AIC<-AIC(ml8) 
+ml9AIC<-AIC(ml9) 
+ml10AIC<-AIC(ml10)  
+
+mltAIC <- AIC(mlt)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+mlAIC_list = c(mlAIC,ml1AIC,ml2AIC,ml3AIC,ml4AIC,ml5AIC,ml6AIC,ml7AIC,ml8AIC,ml9AIC,ml10AIC, mltAIC)   
+mlnames<-c('mlSTEPAIC','curbWeight+make','horsepower+make','curbWeight+horsepower',           'curbWeight+make+height','curbWeight+make+bodyStyle','curbWeight+make+horsepower',           'curbWeight+horsepower+bodyStyle','curbWeight+horsepower+engineSize',           'curbWeight+horsepower+engineType','curbWeight+engineType+bodyStyle', 'curbWeight+log(horsepower)+make')
+```
+
+<br>
+
+Con i modelli costruiti si è tentato di prevedere dei dati che poi verranno comparati con il dataset di test attraverso il valore dello scarto quadratico medio:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Utilizzo i modelli per prevedere i valori del test data 
+pred <-predict(ml,newdata=test_data) 
+pred1<-predict(ml1,newdata=test_data) 
+pred2<-predict(ml2,newdata=test_data) 
+pred3<-predict(ml3,newdata=test_data) 
+pred4<-predict(ml4,newdata=test_data) 
+pred5<-predict(ml5,newdata=test_data) 
+pred6<-predict(ml6,newdata=test_data) 
+pred7<-predict(ml7,newdata=test_data) 
+pred8<-predict(ml8,newdata=test_data) 
+pred9<-predict(ml9,newdata=test_data) 
+pred10<-predict(ml10,newdata=test_data)
+
+predt <- predict(mlt, newdata=test_data)
+
+# Calcolo scarto quadratico medio rispetto al test data 
+RMSD <- sqrt(sum((pred - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD1 <- sqrt(sum((pred1 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD2 <- sqrt(sum((pred2 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD3 <- sqrt(sum((pred3 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD4 <- sqrt(sum((pred4 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD5 <- sqrt(sum((pred5 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD6 <- sqrt(sum((pred6 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD7 <- sqrt(sum((pred7 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD8 <- sqrt(sum((pred8 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD9 <- sqrt(sum((pred9 - test_data$logPrice)^2)/length(test_data$logPrice)) 
+RMSD10 <- sqrt(sum((pred10 - test_data$logPrice)^2)/length(test_data$logPrice))  
+
+RMSDt <- sqrt(sum((predt - test_data$logPrice)^2)/length(test_data$logPrice))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+RMSD_list<-c(RMSD,RMSD1,RMSD2,RMSD3,RMSD4,RMSD5,RMSD6,RMSD7,RMSD8,RMSD9,RMSD10, RMSDt)  
+
+multimodelResults<-data.frame(id = 0:11,adj.R.squared = mlRsq.adj_list, AIC = mlAIC_list, RMSD = RMSD_list, row.names = mlnames)
+```
+
+I valori infine vengono graficati in tre grafici:
+
+-   $R^2$ aggiustato
+-   AIC
+-   scarto quadratico medio con il dataset di testing
+
+```{r fig.align="center",fig.width = 13, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(multimodelResults,aes(x = id,y = adj.R.squared, label = rownames(multimodelResults)))+   
+  geom_point()+   
+  geom_text(angle = -55,hjust = 0, nudge_x = 0.1)+   
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())+   
+  xlim(0, 14)+   
+  ylim(.7,1) 
+
+ggplot(multimodelResults,aes(x = id,y = AIC, label = rownames(multimodelResults))) +   
+  geom_point()+geom_text(angle = 40,hjust = 0, nudge_x = 0.1)+   
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())+   
+  xlim(0, 14)+   
+  ylim(0,-250) 
+
+ggplot(multimodelResults,aes(x = id,y = RMSD, label = rownames(multimodelResults))) +   
+  geom_point()+geom_text(angle = -60,hjust = 0, nudge_x = 0.1)+   
+  theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())+   
+  xlim(0, 14)+   
+  ylim(0.05,0.24) 
+```
+
+<br>
+
+## Conclusioni
+
+Gli 11 modelli che sono emersi dai dati e dalle nostre considerazioni sono stati messi alla prova attraverso i 3 test e successivamente graficati.
+
+Secondo il test AIC i tre modelli che sembrano essere più esplicativi, in ordine di predittività, sono il modello attraverso la funzione stepAIC, ***curbWeight+make+height, curbWeight+make+log(horsepower), curbWeight+make+bodyStyle*** e ***curbWeight+make+horsepower***.
+
+Invece secondo il test dell'$R^2$ aggiustato si vede come quattro modelli finiscono per essere quasi a parimerito: il modello attraverso la funzione stepAIC, ***curbWeight+make+log(horsepower), curbWeight+make+height, curbWeight+make+bodyStyle*** e ***curbWeight+make+horsepower***.
+
+Infine nel test degli scarti quadratici medi emergono tre modelli leggermente più esplicativi degli altri: in ordine di predittività, il modello della funzione stepAIC, ***curbWeight+make+height, curbWeight+make+log(horsepower)*** e ***curbWeight+make+horsepower***.
+
+Sembra quindi emergere che *curbWeight* sia una variabile molto significativa, leggermente di più di *make, horsepower, bodyStyle* e *engineType*.

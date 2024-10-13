@@ -1,0 +1,167 @@
+---
+title: "Homework 2 - Data Analytics - Gruppo E"
+author: "Gabriele Granzotto, Kjanija Mersimoski, Sofia Bragagnolo"
+date: "2023-06-01"
+output: html_document
+---
+
+```{r echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+
+insurance <- read.csv("insurance.csv", stringsAsFactors=TRUE)
+insurance <- insurance[, -1]
+library(ellipse)
+
+```
+
+
+
+# A.
+
+```{r echo=FALSE}
+
+insurance_numeric <- subset(insurance, select=c(charges, bmi, children, age))
+
+insurance_numeric$smoker[insurance$smoker=="yes"] <- 1
+insurance_numeric$smoker[insurance$smoker=="no"] <- 0
+
+insurance_numeric$sex[insurance$sex=="male"] <- 2
+insurance_numeric$sex[insurance$sex=="female"] <- 1
+
+insurance_numeric$region[insurance$region=="southwest"] <- 1
+insurance_numeric$region[insurance$region=="northwest"] <- 2
+insurance_numeric$region[insurance$region=="southeast"] <- 3
+insurance_numeric$region[insurance$region=="northeast"] <- 4
+
+correlation <- cor(insurance_numeric)
+round(correlation, 2)
+plotcorr(correlation)
+
+```
+
+Dal grafico sopra possiamo osservare che, considerando *charges* come variabile risposta, si osserva una correlazione più notevole con le seguenti variabili:
+
+- *bmi* con valore di correlazione 0.20;
+- *age* con valore di correlazione 0.30;
+- *smoker* con valore di correlazione 0.79.
+
+___
+\
+
+# B.
+
+```{r echo=FALSE}
+
+linear_fit <- lm(charges~age, data=insurance)
+
+par(mfrow=c(2,2))
+plot(linear_fit)
+summary(linear_fit)
+
+```
+
+Dal *summary* del modello si nota che l'intercetta ha valore elevato. Da questo deduciamo che già a 18 anni (minima età presente nel dataset) ci sono spese mediche considerevoli: 7804.892 dal modello.
+Questo dato non si discosta troppo dalla media: 7086.218.
+
+Tale valore per i 18enni fumatori è in media 25473.73, mentre per i non fumatori 3215.162. Questo fa pensare a un'elevata varianza.
+
+Il coefficiente della variabile ages è anch'esso elevato (257.7), perciò si ha una veloce crescita nelle spese mediche con l'aumentare dell'età. Questo modello è comunque molto aderente alla realtà. Il test del *t-value* ci da il seguente risultato: Pr(>|t|) < 2e-16, con t = 11.453
+
+Si nota però un valore basso di $R^2$ (0.08872). Quindi questo modello non spiega molto bene i nostri dati. Il motivo è probabilmente che è stato presa in considerazione una sola variabile esplicativa, ma avevamo notato prima che ci sono altre due variabili correlate a *charges*.
+
+Dal *grafico* dei residui si osserva linearità, possibile omoschedasticità, ma si nota che i residui non si distribuiscono lungo la normale.
+
+___
+\
+
+# C.
+```{r echo=FALSE}
+
+plot(insurance$age, insurance$charges,
+     xlab = "Age", ylab="Charges", main="Scatterplot Charges/Age", col = 4, pch = 19, cex=.9)
+abline(linear_fit, col="red", lwd=2)
+abline(0, 0, col = "black")
+
+
+x0 = 35
+x1 = 36
+y0 = predict(linear_fit, data.frame(age = x0))
+y1 = predict(linear_fit, data.frame(age = x1))
+segments(x0, y0, x0, 0, col = "blue", lty="dashed")
+segments(x1, y1, x1, 0, col = "blue", lty="dashed")
+segments(0, y0, x0, y0, col = "blue", lty="dashed")
+segments(0, y1, x1, y1, col = "blue", lty="dashed")
+
+```
+
+___
+\
+
+# D.
+```{r echo=FALSE}
+
+linear_fit_smoker <- lm(charges~age + smoker, data=insurance)
+summary(linear_fit_smoker)
+linear_fit_smoker2 <- lm(charges~age * smoker, data=insurance)
+summary(linear_fit_smoker2)
+AIC(linear_fit, linear_fit_smoker, linear_fit_smoker2)
+
+```
+
+Si nota che il coefficiente quando si considera l'interazione tra age è smoker non è significativo, quindi può essere escluso dal modello. Anche la differenza tra i valori dei rispettivi $R^2$ non è significativa.
+
+Dalla tabella degli AIC notiamo che il modello migliore è *linear_fit_smoker*, anche se non in modo significativo.
+
+___
+\
+
+# E.
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(linear_fit_smoker)
+summary(linear_fit_smoker)
+```
+
+A differenza del modello *linear_fit*, qui notiamo un valore di $R^2$ molto migliore. Infatti, questo rappresenta il 72% circa dei dati
+
+Persiste il problema della distribuzione dei residui lungo una distribuzione normale, ma questa volta sono solo i valori sulle code a discostarsi dalla gaussiana.
+
+```{r echo=FALSE}
+par(mfrow=c(1,1))
+plot(insurance$age, insurance$charges,
+     xlab = "Age", ylab="Charges", main="Scatterplot Charges/Age", col = insurance_numeric$smoker + 3,
+     pch = insurance_numeric$smoker + 18, cex=.9)
+abline(0, 0, col = "black")
+curve(predict(linear_fit_smoker, data.frame(age = x, smoker = "no")), add = T, col="red", lwd=2)
+curve(predict(linear_fit_smoker, data.frame(age = x, smoker = "yes")), add = T, col="red", lwd=2)
+
+x0 = 35
+x1 = 36
+y0 = predict(linear_fit_smoker, data.frame(age = x0, smoker = "no"))
+y1 = predict(linear_fit_smoker, data.frame(age = x1, smoker = "no"))
+segments(x0, y0, x0, 0, col = "blue", lty="dashed")
+segments(x1, y1, x1, 0, col = "blue", lty="dashed")
+segments(0, y0, x0, y0, col = "blue", lty="dashed")
+segments(0, y1, x1, y1, col = "blue", lty="dashed")
+
+x0 = 40
+x1 = 41
+y0 = predict(linear_fit_smoker, data.frame(age = x0, smoker = "yes"))
+y1 = predict(linear_fit_smoker, data.frame(age = x1, smoker = "yes"))
+segments(x0, y0, x0, 0, col = "blue", lty="dashed")
+segments(x1, y1, x1, 0, col = "blue", lty="dashed")
+segments(0, y0, x0, y0, col = "blue", lty="dashed")
+segments(0, y1, x1, y1, col = "blue", lty="dashed")
+
+```
+
+___
+\
+
+# F.
+```{r}
+
+predict(linear_fit_smoker, data.frame(age = 40, smoker = "yes"))
+predict(linear_fit_smoker, data.frame(age = 40, smoker = "no"))
+
+```
+

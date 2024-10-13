@@ -1,0 +1,196 @@
+---
+title: "Homework 1 - Data Analytics"
+author: "Costanza Colauzzi, Gabriele Granzotto, Davide Zorzetto"
+date: "2023-05-19"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Introduction
+
+The dataset $\texttt{insurance.csv}$ describes the medical expenses incurred by a U.S. insurance company for 1,338 individuals. The variables present in the dataset are:
+
+```         
+$\texttt{age}$: age of the insured
+$\texttt{sex}$: gender of the insured
+$\texttt{bmi}$: body mass index
+$\texttt{children}$: number of dependents
+$\texttt{smoker}$: smoker
+$\texttt{region}$: the insured's region of residence in the United States
+$\texttt{charges}$: individual medical charges billed by the insurance.
+```
+
+For the creation of the plots, both the base library and 'lattice' were used.
+
+```{r, echo=FALSE}
+insurance <- read.csv("insurance.csv")
+library(lattice)
+```
+
+### a.
+
+In the Dataset there are *four* categorial variables:
+
+-   **Sex**
+-   **Children**
+-   **Smoker**
+-   **Region**
+
+These variables have been represented using **Barplots** to highlight the *relative frequency*.\
+The most frequent value has been highlighted with a [**red border**]{style="color:red"}.
+
+```{r, echo=FALSE}
+sex <- prop.table(table(insurance$sex))
+children <- prop.table(table(insurance$children))
+smoker <- prop.table(table(insurance$smoker))
+region <- prop.table(table(insurance$region))
+opar = par(lwd = 2)
+barplot(sex, main="Sex in Insurance", col=c(6,4), border=c("darkgrey", "red")) 
+barplot(smoker, main="Smoker in Insurance", col=c("yellow", "black"), border=c("red", "darkgrey"))
+barplot(region, main="Region in Insurance", col=2:5, border=c("darkgrey","darkgrey","red", "darkgrey"))
+
+barplot(children, main="Children in Insurance", col=7:2, border=c("red", "darkgrey", "darkgrey", "darkgrey", "darkgrey", "darkgrey"))
+```
+
+The last plot represents the number of children per individual by treating the variable 'children' as a category.\
+Although the number of children is a numerical variable, we considered it reasonable to treat it as a categorical variable since the number of categories is limited.
+
+### b.
+
+The **boxplot** represents medical expenses as a function of the number of children, divided into *four categories*:
+
+-   **0**
+-   **1**
+-   **2**
+-   **3+**
+
+[**Red bars**]{style="color:Red"} were added to the *boxplot* to indicate the **mean** of the distribution.
+
+```{r, echo=FALSE}
+insurance$new.children[insurance$children == 0] <- "0"
+insurance$new.children[insurance$children == 1] <- "1"
+insurance$new.children[insurance$children == 2] <- "2"
+insurance$new.children[insurance$children >= 3] <- "3+"
+boxplot(insurance$charges~insurance$new.children, main="Boxplot Charges/Children", xlab="Children", ylab="Charges", col="yellow", border="darkblue")
+means <- tapply(insurance$charges, insurance$new.children, mean)
+segments(x0=(1:4)-0.4, x1=(1:4)+0.4, y0=means, y1=means, col="red", lwd=2.5)
+
+```
+
+The positive difference between the **mean** and the **median**, along with the presence of outliers above the upper whisker, indicates a positively skewed distribution with a right-tailed shape for the '**Charges**' variable.
+
+### c.
+
+Based on the **bmi** variable, a new categorical variable **catbmi** has been created with the following categories:
+
+-   **underweight** :              bmi $<$ 18.5
+-   **normal** :           18.5 $\leq$ bmi $\leq$ 24.99
+-   **overweight** :       25 $\leq$ bmi $<$ 30
+-   **obese** :                         bmi $\geq$ 30
+
+The graph was produced using the *"lattice"* library.\
+After analysis, the histogram was divided into **six** bins, considered sufficient to represent the data.
+
+```{r, echo=FALSE}
+
+insurance$catbmi <- cut(insurance$bmi, breaks = c(0, 18.5, 25, 30, max(insurance$bmi) + 1), labels = c("Underweight", "Normal", "Overweight", "Obese"))
+
+           histogram(~ charges | catbmi, data = insurance, layout = c(1, 4),
+                        breaks = (0:6) * max(insurance$charges + 1) / 6, aspect = 0.2, type = "density",
+                        panel = function(x, ...) {
+                          panel.histogram(x, ..., col="cadetblue2")
+                          panel.densityplot(x, col = "#00000F", lwd=2, ...)
+                        },
+           key=list(space="right",
+         lines=list(col=c("cadetblue2","#00000F"), lwd=2),
+         text=list(c("Histogram"," Density")))
+)
+```
+
+### d.
+
+As a first graph to attempt to explore the relationship between **catbmi** and **sex**, two **side-by-side** **barplots** of the *relative frequencies* of **sex** conditional on **catbmi** were used.
+
+```{r, echo=FALSE}
+table.sex.bmi <- table(insurance$sex,insurance$catbmi)
+table.sex.bmi
+sex.conditioned.bmi <- prop.table(table.sex.bmi, 2)
+prop.sex.bmi <- prop.table(table.sex.bmi, 1)
+barplot(sex.conditioned.bmi, beside=T, ylim=c(0,0.8), col=c("pink","lightblue","pink","lightblue","pink","lightblue","pink","lightblue"), main="Grafico a Barre Sex~Catbmi")
+legend(5.5, 0.8, legend = c("Male", "Female"), fill = c("lightblue", "pink"))
+```
+
+From this graph we observe that, except in the *Underweight* group, there is possible independence between *males* and *females*.\
+We tried to investigate the supposed difference between males and females in the *Underweight* so we drew the graph of *relative frequencies* of **catbmi** conditioned to **sex**.\
+
+```{r, echo=FALSE}
+barplot(prop.sex.bmi, beside=T, ylim=c(0,0.8), col=c("pink","lightblue","pink","lightblue","pink","lightblue","pink","lightblue"), main="Grafico a Barre Catbmi~Sex")
+legend(5.5, 0.8, legend = c("Male", "Female"), fill = c("lightblue", "pink"))
+```
+
+This graph shows the paucity of data from the *Underweight* category for both genders.If you see the difference in values between *males* and *females* in a **Barplot** it would seem to suggest that females are more likely to be underweight.\
+
+```{r, echo=FALSE}
+prop.diff <- abs(sex.conditioned.bmi[1,] - sex.conditioned.bmi[2,])
+barplot(prop.diff, col=c("red", "green", "green", "green"), border="darkgrey", main="Differenze tra Maschi e Femmine nel Grafico Sex~Catbmi")
+```
+
+But this from the data we have cannot be inferred with certainty, since, as we can see from the chart below, the data for the **Underweight** category available to us are small in number.
+
+```{r, echo=FALSE}
+
+table.cat <- prop.table(table(insurance$catbmi))
+barplot(table.cat, col=c("red", "green", "green", "green"), border="darkgrey", main="Distribuzione dei dati nelle varie categorie di Catbmi")
+```
+
+Finally, the $\chi^2$ test shows that there is little evidence against the hypothesis that the sex and bmi variables are independent, making their association unlikely.
+
+```{r, echo=FALSE}
+chisq.test(table.sex.bmi, correct = F)
+```
+
+### e.
+
+The image below consists of five graphs:
+
+-   The middle one is the **Dispersion Graph** of Medical Expenditures Relative to Age, with nonsmokers in [**green**]{style="color:green"} and smokers in [**purple**]{style="color:purple"} ;
+
+-   There are two **Boxplots** representing the marginal distribution of *Medical Expenses* and *Age of the Sample*;
+
+-   There are also two **Distributions with the Core Method** of *Age* and *Medical Expenses* conditional on *Smoker* status.
+
+```{r, echo=FALSE}
+smoker <- as.numeric(factor(insurance$smoker))
+
+smoker_col = 19*as.numeric(smoker==1) + 6*as.numeric(smoker==2)
+
+par(cex=0.5, mai=c(0.3, 0.3, 0.2, 0.2))
+
+par(fig=c(0.15, 0.85, 0.15, 0.85))
+plot(insurance$age, insurance$charges, col = smoker_col, pch = 16 + smoker, cex = 0.95, main=NULL, ylim=c(0,70000), xlim=c(16, 65), xaxt='n', yaxt='n')
+
+par(fig=c(0.15, 0.85, 0, 0.24), new=T)
+boxplot(insurance$age, horizontal=T, main=NULL, ylim=c(16, 65), col="lightblue", border="darkblue")
+
+par(fig=c(0, 0.205, 0.15, 0.85), new=T)
+boxplot(insurance$charges, main=NULL, ylim=c(0,70000), col="lightblue", border="darkblue")
+
+par(fig=c(0.15, 0.85, 0.765, 1), new=T)
+plot(density(insurance$age[insurance$smoker=="no"]), col=19, lwd=1.5, main="", xlim=c(16, 65), xaxt='n')
+lines(density(insurance$age[insurance$smoker=="yes"]), col=6, lwd=1.5, main=NULL)
+
+par(fig=c(0.793, 1, 0.15, 0.85), new=T)
+density.charges.no <- density(insurance$charges[insurance$smoker=="no"])
+plot(density.charges.no$y, density.charges.no$x, type = "l", col=19, lwd=1.5, main="", ylim=c(0,70000), yaxt='n')
+
+density.charges.yes <- density(insurance$charges[insurance$smoker=="yes"])
+lines(density.charges.yes$y, density.charges.yes$x, type = "l", col=6, lwd=1.5, main=NULL)
+
+```
+
+\
+\
+\
+\
+\
